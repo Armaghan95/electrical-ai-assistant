@@ -10,30 +10,53 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 # Streamlit UI Configuration
 st.set_page_config(page_title="Electrical Engineering AI Assistant", page_icon="⚡")
 st.title("⚡ Electrical Engineering AI Assistant")
-st.write("Using Chapman's Electric Machinery & Power System Fundamentals.")
+st.write("Ask technical questions based on your loaded electrical manuals or textbook URLs.")
 
-# Sidebar for Groq API Key
+# Sidebar Configuration for Source Selection
 st.sidebar.header("Configuration")
 api_key_input = st.sidebar.text_input("Enter Free Groq API Key:", type="password")
 
 if api_key_input:
     os.environ["GROQ_API_KEY"] = api_key_input
 
-if not api_key_input:
-    st.warning("👈 Please paste your free Groq API key in the sidebar to proceed.")
-else:
-    pdf_url = "https://mycollegevcampus.com/sjcet/notes/Text_Book_2_Electric_Machinery_And_Power_System_Fundamentals_-_Chapman__S.J..pdf"
-    local_pdf_path = "temp_textbook.pdf"
+st.sidebar.markdown("---")
+st.sidebar.subheader("Choose Document Source")
+source_option = st.sidebar.radio("Select input method:", ["PDF URL", "Upload PDF File"])
 
-    @st.cache_resource
-    def load_vector_db():
-        # Download PDF locally if not already downloaded
-        if not os.path.exists(local_pdf_path):
-            response = requests.get(pdf_url)
+target_pdf_path = None
+
+if source_option == "PDF URL":
+    url_input = st.sidebar.text_input(
+        "Enter PDF URL:",
+        value="https://mycollegevcampus.com/sjcet/notes/Text_Book_2_Electric_Machinery_And_Power_System_Fundamentals_-_Chapman__S.J..pdf"
+    )
+    if url_input:
+        local_pdf_path = "downloaded_textbook.pdf"
+        try:
+            response = requests.get(url_input)
             with open(local_pdf_path, "wb") as f:
                 f.write(response.content)
-        
-        loader = PyPDFLoader(local_pdf_path)
+            target_pdf_path = local_pdf_path
+        except Exception as e:
+            st.sidebar.error(f"Failed to download PDF from URL: {e}")
+
+else:
+    uploaded_file = st.sidebar.file_uploader("Upload your PDF file", type=["pdf"])
+    if uploaded_file is not None:
+        local_pdf_path = "uploaded_manual.pdf"
+        with open(local_pdf_path, "wb") as f:
+            f.write(uploaded_file.getbuffer())
+        target_pdf_path = local_pdf_path
+
+# Main Execution Logic
+if not api_key_input:
+    st.warning("👈 Please paste your free Groq API key in the sidebar to proceed.")
+elif not target_pdf_path:
+    st.info("👈 Please provide a valid PDF URL or upload a PDF file via the sidebar to begin.")
+else:
+    @st.cache_resource
+    def load_vector_db(file_path):
+        loader = PyPDFLoader(file_path)
         docs = loader.load()
         text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
         chunks = text_splitter.split_documents(docs)
@@ -41,13 +64,13 @@ else:
         return Chroma.from_documents(chunks, embeddings)
 
     try:
-        with st.spinner("Downloading and processing the textbook... this may take a moment."):
-            vector_db = load_vector_db()
+        with st.spinner("Processing document chunks... Please wait."):
+            vector_db = load_vector_db(target_pdf_path)
 
         retriever = vector_db.as_retriever(search_kwargs={"k": 3})
         llm = ChatGroq(model="llama-3.3-70b-versatile", temperature=0)
 
-        query = st.text_input("Ask a question about the textbook:")
+        query = st.text_input("Ask a question about your document:")
         if query:
             with st.spinner("Searching for answers..."):
                 docs_found = retriever.invoke(query)
@@ -57,4 +80,4 @@ else:
                 st.markdown("### Answer:")
                 st.write(response.content)
     except Exception as e:
-        st.error(f"Error: {e}")
+        st.error(f"An error occurred during processing: {e}")
