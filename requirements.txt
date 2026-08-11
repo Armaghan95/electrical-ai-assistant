@@ -5,3 +5,4 @@ chromadb
 streamlit
 pypdf
 sentence-transformers
+unstructured
