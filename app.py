@@ -10,49 +10,51 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 # Streamlit UI Configuration
 st.set_page_config(page_title="Electrical Engineering AI Assistant", page_icon="⚡")
 st.title("⚡ Electrical Engineering AI Assistant")
-st.write("Ask technical questions based on your loaded electrical manuals or textbook URLs.")
+st.write("Upload your textbook PDF or use the default electrical engineering manual.")
 
-# Sidebar Configuration for Source Selection
+# Sidebar Configuration for Groq API Key
 st.sidebar.header("Configuration")
 api_key_input = st.sidebar.text_input("Enter Free Groq API Key:", type="password")
 
 if api_key_input:
     os.environ["GROQ_API_KEY"] = api_key_input
 
-st.sidebar.markdown("---")
-st.sidebar.subheader("Choose Document Source")
-source_option = st.sidebar.radio("Select input method:", ["PDF URL", "Upload PDF File"])
+# Main Area File Uploader & URL Option
+st.markdown("### 📂 Step 1: Provide your Document")
+upload_option = st.radio("Choose how to provide the PDF:", ["Upload PDF File from Computer", "Use Default Textbook URL"])
 
 target_pdf_path = None
 
-if source_option == "PDF URL":
-    url_input = st.sidebar.text_input(
-        "Enter PDF URL:",
-        value="https://mycollegevcampus.com/sjcet/notes/Text_Book_2_Electric_Machinery_And_Power_System_Fundamentals_-_Chapman__S.J..pdf"
-    )
-    if url_input:
-        local_pdf_path = "downloaded_textbook.pdf"
-        try:
-            response = requests.get(url_input)
-            with open(local_pdf_path, "wb") as f:
-                f.write(response.content)
-            target_pdf_path = local_pdf_path
-        except Exception as e:
-            st.sidebar.error(f"Failed to download PDF from URL: {e}")
-
-else:
-    uploaded_file = st.sidebar.file_uploader("Upload your PDF file", type=["pdf"])
+if upload_option == "Upload PDF File from Computer":
+    uploaded_file = st.file_uploader("Upload your PDF file here", type=["pdf"])
     if uploaded_file is not None:
-        local_pdf_path = "uploaded_manual.pdf"
+        local_pdf_path = "user_uploaded_manual.pdf"
         with open(local_pdf_path, "wb") as f:
             f.write(uploaded_file.getbuffer())
         target_pdf_path = local_pdf_path
+        st.success("File uploaded successfully!")
+else:
+    # Default PDF URL option
+    default_url = "https://mycollegevcampus.com/sjcet/notes/Text_Book_2_Electric_Machinery_And_Power_System_Fundamentals_-_Chapman__S.J..pdf"
+    st.info(f"Using default textbook URL: {default_url}")
+    local_pdf_path = "downloaded_textbook.pdf"
+    try:
+        if not os.path.exists(local_pdf_path):
+            with st.spinner("Downloading default textbook..."):
+                response = requests.get(default_url)
+                with open(local_pdf_path, "wb") as f:
+                    f.write(response.content)
+        target_pdf_path = local_pdf_path
+    except Exception as e:
+        st.error(f"Failed to download default PDF: {e}")
 
-# Main Execution Logic
+st.markdown("---")
+
+# Execution Checks
 if not api_key_input:
-    st.warning("👈 Please paste your free Groq API key in the sidebar to proceed.")
+    st.warning("👈 Please paste your free Groq API key in the sidebar to proceed. (Get one free at console.groq.com)")
 elif not target_pdf_path:
-    st.info("👈 Please provide a valid PDF URL or upload a PDF file via the sidebar to begin.")
+    st.info("Please upload a PDF file or select the default textbook option above to begin.")
 else:
     @st.cache_resource
     def load_vector_db(file_path):
@@ -70,9 +72,11 @@ else:
         retriever = vector_db.as_retriever(search_kwargs={"k": 3})
         llm = ChatGroq(model="llama-3.3-70b-versatile", temperature=0)
 
-        query = st.text_input("Ask a question about your document:")
+        st.markdown("### 💬 Step 2: Ask Technical Questions")
+        query = st.text_input("Enter your electrical engineering question:")
+        
         if query:
-            with st.spinner("Searching for answers..."):
+            with st.spinner("Searching standards and generating answer..."):
                 docs_found = retriever.invoke(query)
                 context = "\n\n".join([doc.page_content for doc in docs_found])
                 prompt = f"Context: {context}\n\nQuestion: {query}"
