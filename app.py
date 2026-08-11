@@ -1,6 +1,7 @@
 import os
+import requests
 import streamlit as st
-from langchain_community.document_loaders import OnlinePDFLoader
+from langchain_community.document_loaders import PyPDFLoader
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.vectorstores import Chroma
 from langchain_groq import ChatGroq
@@ -21,13 +22,18 @@ if api_key_input:
 if not api_key_input:
     st.warning("👈 Please paste your free Groq API key in the sidebar to proceed.")
 else:
-    # URL of your PDF
     pdf_url = "https://mycollegevcampus.com/sjcet/notes/Text_Book_2_Electric_Machinery_And_Power_System_Fundamentals_-_Chapman__S.J..pdf"
+    local_pdf_path = "temp_textbook.pdf"
 
     @st.cache_resource
     def load_vector_db():
-        # Loads the PDF directly from the URL
-        loader = OnlinePDFLoader(pdf_url)
+        # Download PDF locally if not already downloaded
+        if not os.path.exists(local_pdf_path):
+            response = requests.get(pdf_url)
+            with open(local_pdf_path, "wb") as f:
+                f.write(response.content)
+        
+        loader = PyPDFLoader(local_pdf_path)
         docs = loader.load()
         text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
         chunks = text_splitter.split_documents(docs)
