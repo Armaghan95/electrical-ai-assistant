@@ -10,7 +10,7 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 st.set_page_config(
     page_title="Electrical Engineering AI Assistant", page_icon="⚡"
 )
-st.title("⚡ Electrical Engineering AI Assistant (Free Version)")
+st.title("⚡ Electrical Engineering AI Assistant by Armaghan95")
 st.write(
     "Ask technical questions based on your loaded electrical manuals using free"
     " AI."
